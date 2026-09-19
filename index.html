@@ -555,11 +555,27 @@
   function hideToast() { $('toast').classList.remove('show'); undoFn = null; }
   $('toastUndo').addEventListener('click', function () { var fn = undoFn; hideToast(); if (fn) fn(); });
 
+  // mutate() 可以回傳一個「只還原這次操作」的函數；這樣按「復原」時，
+  // 不會連帶抹走這幾秒內做過的其他改動。沒有回傳的話，才用整份快照還原。
   function undoable(msg, mutate) {
     var snapshot = JSON.stringify(S);
-    mutate();
+    var undo = mutate();
     touch(); render();
-    toast(msg, function () { S = JSON.parse(snapshot); touch(); render(); });
+    toast(msg, function () {
+      if (typeof undo === 'function') undo(); else S = JSON.parse(snapshot);
+      touch(); render();
+    });
+  }
+
+  // 記住一批項目的剔號／今次唔帶狀態，回傳還原函數
+  function rememberFlags(items) {
+    var prev = items.map(function (it) { return { it: it, done: !!it.done, skip: !!it.skip }; });
+    return function () {
+      prev.forEach(function (p) {
+        if (p.done) p.it.done = true; else delete p.it.done;
+        if (p.skip) p.it.skip = true; else delete p.it.skip;
+      });
+    };
   }
 
   /* ───────── 畫面 ───────── */
@@ -619,7 +635,12 @@
           type: 'button', class: 'mini danger', text: '刪除', 'aria-label': '刪除 ' + it.name,
           onclick: function () {
             undoable('已刪除「' + it.name + '」', function () {
-              cat.items = cat.items.filter(function (x) { return x !== it; });
+              var at = cat.items.indexOf(it);
+              cat.items.splice(at, 1);
+              return function () {
+                if (S.cats.indexOf(cat) < 0 || cat.items.indexOf(it) >= 0) return;
+                cat.items.splice(Math.min(at, cat.items.length), 0, it);      // 放回原位
+              };
             });
           }
         })
@@ -633,7 +654,11 @@
       it.done = cb.checked;
       li.classList.toggle('done', it.done);
       touch(); renderHeader(); renderJump(); updateCatNum(cat);
-      if (ui.filter === 'todo') scheduleRender();
+      if (ui.filter === 'todo') {
+        scheduleRender();
+        // 「未執好」模式下項目會即時消失，誤剔很難察覺 → 顯示它的名稱，並提供只還原這一項的「復原」
+        if (it.done) toast('已執好「' + it.name + '」', function () { delete it.done; touch(); render(); });
+      }
     });
     li.appendChild(h('label', null, cb, h('span', { class: 'box', 'aria-hidden': 'true' }), h('span', { class: 'item-name', text: it.name })));
     // 右邊的小按鈕：一按標記／取消「今次唔帶」（不計入進度）
@@ -646,7 +671,10 @@
         touch();
         li.parentNode.replaceChild(renderItem(cat, it), li);
         renderHeader(); renderJump(); updateCatNum(cat);
-        if (ui.filter === 'todo') scheduleRender();
+        if (ui.filter === 'todo') {
+          scheduleRender();
+          if (it.skip) toast('「' + it.name + '」今次唔帶', function () { delete it.skip; touch(); render(); });
+        }
       }
     });
     if (it.skip) skipBtn.appendChild(h('span', { text: '今次唔帶' }));
@@ -689,7 +717,11 @@
           type: 'button', class: 'mini danger', text: '刪除分類',
           onclick: function () {
             undoable('已刪除分類「' + cat.name + '」（' + cat.items.length + ' 個項目）', function () {
-              S.cats = S.cats.filter(function (x) { return x !== cat; });
+              var at = S.cats.indexOf(cat);
+              S.cats.splice(at, 1);
+              return function () {
+                if (S.cats.indexOf(cat) < 0) S.cats.splice(Math.min(at, S.cats.length), 0, cat);
+              };
             });
           }
         })
@@ -713,13 +745,17 @@
               var now = catState(cat);
               if (now.allSkip) {
                 undoable('「' + cat.name + '」已恢復', function () {
+                  var back = rememberFlags(cat.items), wasFold = !!cat.fold;
                   cat.items.forEach(function (it) { delete it.skip; });
                   cat.fold = false;
+                  return function () { back(); cat.fold = wasFold; };
                 });
               } else {
                 undoable('「' + cat.name + '」整個分類今次唔帶', function () {
+                  var back = rememberFlags(cat.items), wasFold = !!cat.fold;
                   cat.items.forEach(function (it) { it.skip = true; delete it.done; });
                   cat.fold = true;                       // 順手收起，減少畫面長度
+                  return function () { back(); cat.fold = wasFold; };
                 });
               }
             }
@@ -822,7 +858,11 @@
     var act = btn.dataset.act;
     if (act === 'newTrip') {
       undoable('已清除剔號。用不著的項目，按右邊 ⊘ 標記「今次唔帶」', function () {
-        S.cats.forEach(function (c) { c.items.forEach(function (it) { delete it.done; delete it.skip; }); });
+        var all = [];
+        S.cats.forEach(function (c) { all = all.concat(c.items); });
+        var back = rememberFlags(all);
+        all.forEach(function (it) { delete it.done; delete it.skip; });
+        return back;
       });
     } else if (act === 'sort') {
       openSorter();
