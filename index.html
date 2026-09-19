@@ -913,7 +913,7 @@
     mode = m;
     $('mLogin').setAttribute('aria-pressed', m === 'login' ? 'true' : 'false');
     $('mReg').setAttribute('aria-pressed', m === 'register' ? 'true' : 'false');
-    $('aSubmit').textContent = m === 'login' ? '登入' : '建立我的清單';
+    $('aSubmit').textContent = m === 'login' ? '登入' : '註冊';
     $('aPass').setAttribute('autocomplete', m === 'login' ? 'current-password' : 'new-password');
     $('inviteRow').hidden = !(m === 'register' && cfg.invite);
     $('aHint').textContent = m === 'login'
