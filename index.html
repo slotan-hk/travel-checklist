@@ -93,16 +93,6 @@
   .tag-count { margin: 2px 0 0; font: 500 15px/1.5 var(--head-font); font-variant-numeric: tabular-nums; }
   .tag-count b { font-size: 21px; font-weight: 700; }
 
-  /* 登入後：頁首縮成一行（會徽在左、進度在右），把空間留給清單 */
-  body[data-view="app"] .hero { display: grid; grid-template-columns: 88px 1fr; align-items: center; gap: 10px; text-align: left; }
-  body[data-view="app"] .logo { width: 88px; margin: 0; }
-  body[data-view="app"] .progress-card { position: relative; padding: 10px 16px 14px; }
-  body[data-view="app"] .hero h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
-  body[data-view="app"] .tag-top { position: absolute; top: 14px; right: 16px; }
-  body[data-view="app"] .tag-count { margin: 0; padding-right: 64px; }
-  body[data-view="app"] .track-wrap { padding-top: 26px; }
-  body[data-view="app"] .pawn { top: 0; width: 22px; height: 28px; }
-
   /* 進度：棋子沿著軌道行向終點的星 */
   .track-wrap { position: relative; padding-top: 30px; margin: 0 16px 0 6px; }
   .track { height: 16px; border-radius: 99px; border: 2px solid var(--outline); background: var(--paper); overflow: hidden; }
@@ -583,11 +573,12 @@
     if (!st.total) {
       count.textContent = '清單未有項目';
     } else if (st.done === st.total) {
-      count.appendChild(h('b', { text: '執齊晒，出發！' }));
+      count.appendChild(h('b', { text: '執齊晒 ' + st.total + ' 件' }));
+      count.appendChild(document.createTextNode('，可以出發'));
     } else {
       count.appendChild(document.createTextNode('執好 '));
       count.appendChild(h('b', { text: String(st.done) }));
-      count.appendChild(document.createTextNode(' / ' + st.total + ' 件'));
+      count.appendChild(document.createTextNode(' / ' + st.total + ' 件，仲有 ' + (st.total - st.done) + ' 件'));
     }
     $('fill').style.width = pct + '%';
     if (pct) $('fill').removeAttribute('data-zero'); else $('fill').setAttribute('data-zero', '');
