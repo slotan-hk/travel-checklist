@@ -93,6 +93,16 @@
   .tag-count { margin: 2px 0 0; font: 500 15px/1.5 var(--head-font); font-variant-numeric: tabular-nums; }
   .tag-count b { font-size: 21px; font-weight: 700; }
 
+  /* 登入後：頁首縮成一行（會徽在左、進度在右），把空間留給清單 */
+  body[data-view="app"] .hero { display: grid; grid-template-columns: 88px 1fr; align-items: center; gap: 10px; text-align: left; }
+  body[data-view="app"] .logo { width: 88px; margin: 0; }
+  body[data-view="app"] .progress-card { position: relative; padding: 10px 16px 14px; }
+  body[data-view="app"] .hero h1 { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  body[data-view="app"] .tag-top { position: absolute; top: 14px; right: 16px; }
+  body[data-view="app"] .tag-count { margin: 0; padding-right: 64px; }
+  body[data-view="app"] .track-wrap { padding-top: 26px; }
+  body[data-view="app"] .pawn { top: 0; width: 22px; height: 28px; }
+
   /* 進度：棋子沿著軌道行向終點的星 */
   .track-wrap { position: relative; padding-top: 30px; margin: 0 16px 0 6px; }
   .track { height: 16px; border-radius: 99px; border: 2px solid var(--outline); background: var(--paper); overflow: hidden; }
@@ -178,7 +188,7 @@
 
   /* ── 分類 ── */
   .cat { margin-top: 16px; scroll-margin-top: var(--bar-h); overflow: hidden; }
-  .cat-head { display: flex; align-items: center; gap: 8px; padding-right: 12px; }
+  .cat-head { display: flex; align-items: center; gap: 2px; padding-right: 12px; }
   .cat-toggle {
     flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px;
     border: 0; background: none; text-align: left; padding: 14px 6px 14px 16px; min-height: 52px;
@@ -191,10 +201,14 @@
     border: 1.5px solid var(--outline); border-radius: 99px; padding: 5px 10px; background: var(--paper);
   }
   .cat.full .cat-num { background: var(--green); color: #083C63; }
+  .cat.skipped .cat-name { color: var(--muted); text-decoration: line-through; }
+  .cat.skipped .cat-num { background: transparent; border-style: dashed; border-color: var(--muted); color: var(--muted); font-weight: 500; }
+  .cat-head .skip-btn[aria-pressed="true"] svg { opacity: 1; color: var(--ink); }
+  .chip.skipped { border-style: dashed; color: var(--muted); text-decoration: line-through; }
   .cat.folded .cat-body { display: none; }
 
   .items { list-style: none; margin: 0; padding: 0; }
-  .item { display: flex; align-items: center; gap: 6px; border-top: 2px solid var(--rule); padding-right: 12px; }
+  .item { display: flex; align-items: center; gap: 2px; border-top: 2px solid var(--rule); padding-right: 6px; }
   .item label { flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; padding: 11px 4px 11px 16px; min-height: 50px; cursor: pointer; }
   .item input[type="checkbox"] { position: absolute; opacity: 0; width: 1px; height: 1px; }
   .box {
@@ -215,7 +229,15 @@
   .item.done .item-name { color: var(--muted); }
   .item.skip .item-name { color: var(--muted); text-decoration: line-through; }
   .item.skip .box { border-style: dashed; opacity: .5; }
-  .skip-note { flex: none; font-size: 12px; color: var(--muted); border: 1.5px dashed var(--muted); border-radius: 99px; padding: 1px 8px; }
+  .skip-btn {
+    flex: none; min-width: 44px; min-height: 44px; border: 0; background: none; padding: 0 4px;
+    display: grid; place-items: center; color: var(--muted);
+  }
+  .skip-btn svg { width: 20px; height: 20px; opacity: .45; }
+  .skip-btn:hover svg { opacity: .9; }
+  .skip-btn[aria-pressed="true"] span {
+    font-size: 12px; border: 1.5px dashed var(--muted); border-radius: 99px; padding: 2px 8px; white-space: nowrap;
+  }
 
   /* 編輯模式 */
   .name-input {
@@ -320,7 +342,7 @@
 
   <section class="auth tile" id="auth" aria-labelledby="authTitle">
     <h1 id="authTitle">行李清單</h1>
-    <p class="auth-lead">不用 Google 帳戶。自訂一個暱稱和密碼，你的清單只有你自己看得到。</p>
+    <p class="auth-lead">自訂一個暱稱和密碼，你的清單只有你自己看得到。</p>
     <div class="seg" role="group" aria-label="登入或建立">
       <button type="button" id="mLogin" aria-pressed="true">登入</button>
       <button type="button" id="mReg" aria-pressed="false">第一次用</button>
@@ -370,8 +392,7 @@
   <div class="menu-sep"></div>
   <button class="menu-item" data-act="sort" type="button">排列分類次序<small>把常用的分類移到上面</small></button>
   <div class="menu-sep"></div>
-  <button class="menu-item" data-act="foldAll" type="button">收起全部分類</button>
-  <button class="menu-item" data-act="openAll" type="button">展開全部分類</button>
+  <button class="menu-item" data-act="foldToggle" id="foldToggle" type="button">收起全部分類</button>
   <div class="menu-sep"></div>
   <button class="menu-item danger" data-act="restore" type="button">還原預設清單<small>用預設清單取代你現時的清單</small></button>
   <div class="menu-sep"></div>
@@ -488,6 +509,16 @@
     return { total: total, done: done };
   }
 
+  var SKIP_ICON = '<svg viewBox="0 0 20 20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="10" cy="10" r="7.5"/><path d="M4.8 15.2 15.2 4.8"/></svg>';
+
+  function catState(cat) {
+    var st = stats(cat.items);
+    st.full = st.total > 0 && st.done === st.total;
+    st.allSkip = cat.items.length > 0 && st.total === 0;       // 整個分類都標記了「今次唔帶」
+    st.label = st.allSkip ? '今次唔帶' : (st.full ? '★ ' : '') + st.done + '/' + st.total;
+    return st;
+  }
+
   /* ───────── 儲存（有改動 0.7 秒後自動儲存，一次只送一個請求）───────── */
   var dirty = false, saving = false, saveTimer = null, fails = 0;
 
@@ -552,12 +583,11 @@
     if (!st.total) {
       count.textContent = '清單未有項目';
     } else if (st.done === st.total) {
-      count.appendChild(h('b', { text: '執齊晒 ' + st.total + ' 件' }));
-      count.appendChild(document.createTextNode('，可以出發'));
+      count.appendChild(h('b', { text: '執齊晒，出發！' }));
     } else {
       count.appendChild(document.createTextNode('執好 '));
       count.appendChild(h('b', { text: String(st.done) }));
-      count.appendChild(document.createTextNode(' / ' + st.total + ' 件，仲有 ' + (st.total - st.done) + ' 件'));
+      count.appendChild(document.createTextNode(' / ' + st.total + ' 件'));
     }
     $('fill').style.width = pct + '%';
     if (pct) $('fill').removeAttribute('data-zero'); else $('fill').setAttribute('data-zero', '');
@@ -569,10 +599,10 @@
   function renderJump() {
     jumpEl.textContent = '';
     S.cats.forEach(function (c) {
-      var st = stats(c.items);
+      var st = catState(c);
       jumpEl.appendChild(h('button', {
         type: 'button',
-        class: 'chip' + (st.total && st.done === st.total ? ' full' : ''),
+        class: 'chip' + (st.full ? ' full' : '') + (st.allSkip ? ' skipped' : ''),
         text: c.name,
         onclick: function () {
           if (c.fold) { c.fold = false; touch(); render(); }
@@ -592,14 +622,6 @@
             var v = this.value.replace(/\s+/g, ' ').trim();
             if (!v) { this.value = it.name; return; }
             it.name = v; this.value = v; touch();
-          }
-        }),
-        h('button', {
-          type: 'button', class: 'mini', 'aria-pressed': it.skip ? 'true' : 'false', text: '今次唔帶',
-          onclick: function () {
-            it.skip = !it.skip;
-            this.setAttribute('aria-pressed', it.skip ? 'true' : 'false');
-            touch(); renderHeader(); renderJump(); updateCatNum(cat);
           }
         }),
         h('button', {
@@ -623,27 +645,44 @@
       if (ui.filter === 'todo') scheduleRender();
     });
     li.appendChild(h('label', null, cb, h('span', { class: 'box', 'aria-hidden': 'true' }), h('span', { class: 'item-name', text: it.name })));
-    if (it.skip) li.appendChild(h('span', { class: 'skip-note', text: '今次唔帶' }));
+    // 右邊的小按鈕：一按標記／取消「今次唔帶」（不計入進度）
+    var skipBtn = h('button', {
+      type: 'button', class: 'skip-btn', 'aria-pressed': it.skip ? 'true' : 'false',
+      'aria-label': '今次唔帶：' + it.name, title: '今次唔帶',
+      onclick: function () {
+        it.skip = !it.skip;
+        if (it.skip) delete it.done;
+        touch();
+        li.parentNode.replaceChild(renderItem(cat, it), li);
+        renderHeader(); renderJump(); updateCatNum(cat);
+        if (ui.filter === 'todo') scheduleRender();
+      }
+    });
+    if (it.skip) skipBtn.appendChild(h('span', { text: '今次唔帶' }));
+    else skipBtn.innerHTML = SKIP_ICON;
+    li.appendChild(skipBtn);
     return li;
   }
 
   function updateCatNum(cat) {
     var el = $('cat-' + cat.id);
     if (!el) return;
-    var st = stats(cat.items);
-    var full = st.total > 0 && st.done === st.total;
-    el.classList.toggle('full', full);
+    var st = catState(cat);
+    el.classList.toggle('full', st.full);
+    el.classList.toggle('skipped', st.allSkip);
     var num = el.querySelector('.cat-num');
-    if (num) num.textContent = (full ? '★ ' : '') + st.done + '/' + st.total;
+    if (num) num.textContent = st.label;
+    var btn = el.querySelector('.cat-head .skip-btn');
+    if (btn) btn.setAttribute('aria-pressed', st.allSkip ? 'true' : 'false');
   }
 
   function renderCat(cat) {
-    var st = stats(cat.items);
-    var full = st.total > 0 && st.done === st.total;
+    var st = catState(cat);
+    var full = st.full;
     var todoOnly = ui.filter === 'todo' && !ui.edit;
     if (todoOnly && cat.items.length && st.done === st.total) return null;
 
-    var sec = h('section', { class: 'cat tile' + (cat.fold && !ui.edit ? ' folded' : '') + (full ? ' full' : ''), id: 'cat-' + cat.id });
+    var sec = h('section', { class: 'cat tile' + (cat.fold && !ui.edit ? ' folded' : '') + (full ? ' full' : '') + (st.allSkip ? ' skipped' : ''), id: 'cat-' + cat.id });
 
     if (ui.edit) {
       sec.appendChild(h('div', { class: 'cat-head editing' },
@@ -675,7 +714,29 @@
             touch();
           }
         }, h('span', { class: 'chev', 'aria-hidden': 'true' }), h('span', { class: 'cat-name', text: cat.name })),
-        h('span', { class: 'cat-num', text: (full ? '★ ' : '') + st.done + '/' + st.total })
+        cat.items.length ? (function () {
+          var btn = h('button', {
+            type: 'button', class: 'skip-btn', 'aria-pressed': st.allSkip ? 'true' : 'false',
+            'aria-label': '整個分類今次唔帶：' + cat.name, title: '整個分類今次唔帶',
+            onclick: function () {
+              var now = catState(cat);
+              if (now.allSkip) {
+                undoable('「' + cat.name + '」已恢復', function () {
+                  cat.items.forEach(function (it) { delete it.skip; });
+                  cat.fold = false;
+                });
+              } else {
+                undoable('「' + cat.name + '」整個分類今次唔帶', function () {
+                  cat.items.forEach(function (it) { it.skip = true; delete it.done; });
+                  cat.fold = true;                       // 順手收起，減少畫面長度
+                });
+              }
+            }
+          });
+          btn.innerHTML = SKIP_ICON;
+          return btn;
+        })() : null,
+        h('span', { class: 'cat-num', text: st.label })
       ));
     }
 
@@ -756,7 +817,9 @@
 
   /* ───────── 選單 ───────── */
   var menu = $('menu');
+  function anyOpen() { return S.cats.some(function (c) { return !c.fold; }); }
   $('menuBtn').addEventListener('click', function () {
+    $('foldToggle').textContent = anyOpen() ? '收起全部分類' : '展開全部分類';
     if (menu.showModal) menu.showModal(); else menu.setAttribute('open', '');
   });
   function closeMenu() { if (menu.close) menu.close(); else menu.removeAttribute('open'); }
@@ -767,13 +830,14 @@
     closeMenu();
     var act = btn.dataset.act;
     if (act === 'newTrip') {
-      undoable('已清除所有剔號', function () {
+      undoable('已清除剔號。用不著的項目，按右邊 ⊘ 標記「今次唔帶」', function () {
         S.cats.forEach(function (c) { c.items.forEach(function (it) { delete it.done; delete it.skip; }); });
       });
     } else if (act === 'sort') {
       openSorter();
-    } else if (act === 'foldAll' || act === 'openAll') {
-      S.cats.forEach(function (c) { c.fold = act === 'foldAll'; });
+    } else if (act === 'foldToggle') {
+      var fold = anyOpen();
+      S.cats.forEach(function (c) { c.fold = fold; });
       touch(); render();
     } else if (act === 'logout') {
       if (dirty && ui.loaded) call('saveList', S);        // 登出前把未儲存的改動送出
@@ -862,7 +926,7 @@
     $('aPass').setAttribute('autocomplete', m === 'login' ? 'current-password' : 'new-password');
     $('inviteRow').hidden = !(m === 'register' && cfg.invite);
     $('aHint').textContent = m === 'login'
-      ? '忘記密碼？請找管理員幫你重設。'
+      ? '忘記密碼？請找 Tom 幫你重設。'
       : '密碼最少 ' + cfg.minPass + ' 個字。請不要用你其他帳戶（例如銀行、電郵）的密碼。';
     $('aErr').textContent = '';
   }
